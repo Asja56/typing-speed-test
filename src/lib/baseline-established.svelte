@@ -5,7 +5,7 @@
   import rightStar from "../assets/images/pattern-star-1.svg";
   type ResultState = "Complete" | "Baseline" | "HigherScore" | "None";
 
-  let { resultStateChange, wpm, accuracy, typedCharacters, totalCharacters } =
+  let { resultStateChange, wpm, accuracy, typedCharacters, errors } =
     $props();
 </script>
 
@@ -40,7 +40,7 @@
         Characters:
         <div>
           <span class="text-green-500 font-semibold"> {typedCharacters} </span>/
-          <span class="text-red-500 font-semibold"> {totalCharacters} </span>
+          <span class="text-red-500 font-semibold"> {errors} </span>
         </div>
       </li>
     </ul>

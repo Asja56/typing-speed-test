@@ -8,6 +8,7 @@
   import HighScoreSmashed from "./lib/high-score-smashed.svelte";
   import StatisticsControl from "./lib/statistics.svelte";
   import texts from "./assets/data.json";
+  import { onMount } from "svelte";
 
   type ResultState = "Complete" | "Baseline" | "HigherScore" | "None";
 
@@ -22,64 +23,129 @@
   // Test variables
   let currentText = $state({
     id: "",
-    text: "Some words are *italic*, some are **bold**.",
+    text: "Some words",
   });
   let selectedDifficulty: string = $state("Easy");
   let selectedMode: string = $state("Timed (60s)");
   let stopTest = $state(false);
   let finalWpm = $state(0);
+  let personalBestWpm = $state(0);
   let finalAccuracy = $state(0);
   let finalCharacters = $state(0);
   let totalCharacters = $derived(currentText.text.length);
-  let totalTime = $state(0);
+  let currentIndex = $state(0);
+  let totalTime = $state(60);
   let startTime = $state(0);
-  let isActive = $state(false);
   let errors = $state(0);
-  let userInput: string = $state('');
+  let wasWrong: boolean[] = [];
+  let userInput: string = $state("");
+  let textContentElement: HTMLElement;
+  let timerId: ReturnType<typeof setInterval>;
+
+  $effect(() => {
+    selectedDifficulty;
+    loadNewText();
+  });
+
+  onMount(() => {
+    const stored = localStorage.getItem("personalBestWpm");
+    personalBestWpm = stored ? Number(stored) : 0;
+  });
 
   function loadNewText() {
-    if (selectedDifficulty === "Easy") {
-      currentText = texts.Easy[Math.floor(Math.random() * texts.Easy.length)];
-    } else if (selectedDifficulty === "Medium") {
-      currentText =
-        texts.Medium[Math.floor(Math.random() * texts.Medium.length)];
-    } else {
-      currentText = texts.Hard[Math.floor(Math.random() * texts.Hard.length)];
-    }
+    const map = {
+      Easy: texts.Easy,
+      Medium: texts.Medium,
+      Hard: texts.Hard,
+    };
+
+    const list = map[selectedDifficulty];
+    const randomItem = list[Math.floor(Math.random() * list.length)];
+
+    currentText = { ...randomItem };
+  }
+
+  function clickOnStartTest() {
+    passage = !passage;
+    startTest();
   }
 
   function startTest() {
-    passage = !passage;
-    loadNewText();
-    isActive = true;
+    stopTest = false;
     startTime = Date.now();
 
-    if (selectedMode === "Timed (60s)") {
-      startTimer();
-    } else {
-      let timeLeft = 0;
-      setInterval(() => {
-        timeLeft++;
-        if (userInput.length >= totalCharacters) {
-          endTest();
-        }
-      }, 1000);
-    }
+    textContentElement.innerHTML = "";
+    currentText.text.split("").forEach((character) => {
+      const charSpan = document.createElement("span");
+      charSpan.dataset.original = character;
+      charSpan.innerHTML = character;
+      textContentElement.appendChild(charSpan);
+      charSpan.classList.remove("text-green-500", "underline", "text-red-500");
+    });
+    startTimer();
+
+    wasWrong = Array(totalCharacters).fill(false);
   }
 
   function typingText(input: string) {
     userInput = input;
+
+    const arrayQuoteSpan = textContentElement.querySelectorAll("span");
+    const arrayUserInput = input.split("");
+
+    arrayQuoteSpan.forEach((charSpan, index) => {
+      const originalChar = charSpan.dataset.original;
+      const character = arrayUserInput[index];
+
+      charSpan.classList.remove("text-red-500", "underline", "text-green-500");
+      if (!character) {
+        charSpan.innerHTML = originalChar!;
+        return;
+      }
+      if (character === originalChar) {
+        charSpan.innerHTML = originalChar!;
+        charSpan.classList.add("text-green-500");
+        wasWrong[index] = false;
+      } else {
+        charSpan.classList.add("underline", "text-red-500");
+        charSpan.innerHTML = character;
+        if (!wasWrong[index]) {
+          errors++;
+        }
+
+        wasWrong[index] = true;
+      }
+
+      console.log("errors", errors);
+
+      currentIndex = index;
+      if (currentIndex >= totalCharacters) {
+        endTest();
+      }
+
+      updateStats();
+    });
   }
 
   // Start the countdown timer
   function startTimer() {
-    let timeLeft = 60;
+    if (timerId) clearInterval(timerId);
 
-    setInterval(() => {
-      timeLeft--;
-      if (timeLeft <= 0) {
+    let timeLeft = selectedMode === "Timed (60s)" ? 60 : 0;
+
+    timerId = setInterval(() => {
+      if (selectedMode === "Timed (60s)") {
+        timeLeft--;
+      } else {
+        timeLeft++;
+      }
+
+      totalTime = timeLeft;
+
+      if (timeLeft <= 0 && selectedMode === "Timed (60s)") {
         endTest();
       }
+
       if (userInput.length >= totalCharacters) {
         endTest();
       }
@@ -87,44 +153,69 @@
   }
 
   function endTest() {
-    isActive = false;
+    if (stopTest) return;
     stopTest = true;
+    if (timerId) {
+      clearInterval(timerId);
+    }
+
     updateStats();
     showResults();
   }
 
   function updateStats() {
-    // const timeElapsed = (Date.now() - startTime) / 1000 / 60;
-    // const grossWPM = currentIndex / 5 / timeElapsed;
-    // const netWPM = Math.max(0, Math.round(grossWPM - errors / timeElapsed));
-    // const accuracy =
-    //   totalCharacters > 0
-    //     ? Math.round(((totalCharacters - errors) / totalCharacters) * 100)
-    //     : 100;
+    const endTime = Date.now();
+    const timeElapsed = (endTime - startTime) / 1000 / 60;
+    const grossWPM = currentIndex / 5 / timeElapsed;
+    const netWPM = Math.max(0, Math.round(grossWPM - errors / timeElapsed));
+
+    const accuracy =
+      totalCharacters > 0
+        ? Math.round(((totalCharacters - errors) / totalCharacters) * 100)
+        : 100;
+
+    finalWpm = isFinite(netWPM) ? netWPM : 0;
+    finalAccuracy = accuracy;
+    finalCharacters = currentIndex;
   }
 
   // Show results modal with final stats
   function showResults() {
-    resultState = "Complete";
+    if (personalBestWpm === 0) {
+      resultState = "Baseline";
+      personalBestWpm = finalWpm;
+    } else if (finalWpm > personalBestWpm) {
+      resultState = "HigherScore";
+      personalBestWpm = finalWpm;
+    } else {
+      resultState = "Complete";
+    }
+
+    localStorage.setItem("personalBestWpm", `${personalBestWpm}`);
   }
 
   // Reset the typing test
   function resultStateChange(event: ResultState) {
     resultState = event;
+    restart();
   }
 
   function restart() {
-    stopTest = false;
+    if (timerId) {
+      clearInterval(timerId);
+    }
     finalWpm = 0;
     finalAccuracy = 0;
     finalCharacters = 0;
-    totalCharacters = 0;
     testComplete = true;
     errors = 0;
-    userInput = ''
-    isActive = false
-    totalTime = 0
-     loadNewText()
+    userInput = "";
+    stopTest = false;
+    totalTime = 60;
+    resultState = "None";
+
+    document.getElementsByTagName('textarea')[0].value = ''
+    startTest();
   }
 </script>
 
@@ -144,7 +235,7 @@
         Personal best
       {:else}
         Best
-      {/if}: <span class="text-white">92 WPM</span>
+      {/if}: <span class="text-white">{personalBestWpm} WPM</span>
     </p>
   </div>
 
@@ -160,7 +251,9 @@
           Accuracy: <span class="text-red-500 value">{finalAccuracy}%</span>
         </li>
         <li class="max-md:text-center">
-          Time: <span class="text-yellow-400 value">{totalTime}</span>
+          Time: <span class="text-yellow-400 value" id="timer"
+            >00:{totalTime}</span
+          >
         </li>
       </ul>
 
@@ -169,13 +262,21 @@
 
     <div class="relative flex-1">
       <div class="flex flex-col gap-2 items-center h-full text-center">
-        <textarea
-          class="w-full h-full"
-          placeholder={currentText.text}
-          bind:value={userInput}
-          disabled={stopTest}
-          oninput={(e) => typingText(e.currentTarget.value)}
-        ></textarea>
+        <div class="relative w-full h-full">
+          <div class="absolute top-0 left-0">
+            <div
+              class="text-left"
+              id="textContent"
+              bind:this={textContentElement}
+            ></div>
+          </div>
+          <textarea
+            class="w-full h-full"
+            disabled={stopTest}
+            value=''
+            oninput={(e) => typingText(e.currentTarget.value)}
+          ></textarea>
+        </div>
         {#if testComplete}
           <button
             class="button-secondary"
@@ -187,6 +288,7 @@
           </button>
         {/if}
       </div>
+
       <!-- Passage appear at the beginning-->
       {#if passage}
         <div
@@ -195,7 +297,7 @@
           <button
             class="button-primary mb-4"
             aria-label="start typing test"
-            onclick={startTest}
+            onclick={clickOnStartTest}
           >
             Start Typing Test
           </button>
@@ -211,7 +313,7 @@
           wpm={finalWpm}
           accuracy={finalAccuracy}
           typedCharacters={finalCharacters}
-          {totalCharacters}
+          {errors}
           resultStateChange={(e: any) => resultStateChange(e)}
         />
       </div>
@@ -223,7 +325,7 @@
           wpm={finalWpm}
           accuracy={finalAccuracy}
           typedCharacters={finalCharacters}
-          {totalCharacters}
+          {errors}
           resultStateChange={(e: any) => resultStateChange(e)}
         />
       </div>
@@ -235,7 +337,7 @@
           wpm={finalWpm}
           accuracy={finalAccuracy}
           typedCharacters={finalCharacters}
-          {totalCharacters}
+          {errors}
           resultStateChange={(e: any) => resultStateChange(e)}
         />
       </div>

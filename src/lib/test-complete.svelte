@@ -5,8 +5,12 @@
   import rightStar from "../assets/images/pattern-star-1.svg";
   type ResultState = "Complete" | "Baseline" | "HigherScore" | "None";
 
-  let { resultStateChange, wpm, accuracy, typedCharacters, totalCharacters } =
+  let previousAccuracy;
+
+  let { resultStateChange, wpm, accuracy, typedCharacters, errors } =
     $props();
+
+
 </script>
 
 <div class="flex gap-4 h-full bg-neutral-900 md:pl-16 md:pr-16 max-md:flex-col">
@@ -38,7 +42,7 @@
         Characters:
         <div>
           <span class="text-green-500 font-semibold"> {typedCharacters} </span>/
-          <span class="text-red-500 font-semibold"> {totalCharacters} </span>
+          <span class="text-red-500 font-semibold"> {errors} </span>
         </div>
       </li>
     </ul>
