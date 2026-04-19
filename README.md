@@ -23,8 +23,7 @@ The challenge name is Typing Speed Test. Requirements are under this link https:
 <img width="1277" height="584" alt="image" src="https://github.com/user-attachments/assets/75f6b140-382d-4293-b032-d8ade93bcd1c" />
 
 ### Links
-- Solution URL: [Add solution URL here](https://your-solution-url.com)
-- Live Site URL: [Add live site URL here](https://your-live-site-url.com)
+- Live Site URL: [Add live site URL here](https://your-live-site-url.com)](https://asja56.github.io/typing-speed-test/)
 
 ## My process
 
